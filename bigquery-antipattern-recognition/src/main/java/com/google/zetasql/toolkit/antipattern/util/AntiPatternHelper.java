@@ -24,6 +24,8 @@ import com.google.zetasql.parser.ParseTreeVisitor;
 import com.google.zetasql.resolvedast.ResolvedNodes;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
 import com.google.zetasql.toolkit.antipattern.AntiPatternVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.ClusteringCheckVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.PartitionCheckVisitor;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.joinorder.JoinOrderVisitor;
 import com.google.zetasql.toolkit.antipattern.cmd.InputQuery;
 import com.google.zetasql.toolkit.antipattern.parser.visitors.*;
@@ -114,7 +116,10 @@ public class AntiPatternHelper {
             catalog = new BigQueryCatalog(this.analyzerProject, this.resourceProvider);
             catalog.addAllTablesUsedInQuery(query, this.analyzerOptions);
         }
-        JoinOrderVisitor visitor = new JoinOrderVisitor(this.service);
+        List<AntiPatternVisitor> parserVisitorList = Arrays.asList(new JoinOrderVisitor(this.service), new PartitionCheckVisitor(this.service), new ClusteringCheckVisitor(this.service));
+        for (AntiPatternVisitor visitor : parserVisitorList) {
+
+        //JoinOrderVisitor visitor = new JoinOrderVisitor(this.service);
         if(this.visitorMetricsMap.get(visitor.getName()) == null) {
             this.visitorMetricsMap.put(visitor.getName(), 0);
             this.visitorMetricsMap.merge(visitor.getName(), 1, Integer::sum);
@@ -123,7 +128,7 @@ public class AntiPatternHelper {
             logger.info("Analyzing query with id: " + inputQuery.getQueryId() +
                     " For anti-pattern:" + visitor.getName());
             Iterator<ResolvedNodes.ResolvedStatement> statementIterator = this.analyzer.analyzeStatements(query, catalog);
-            statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+            statementIterator.forEachRemaining(statement -> statement.accept((ResolvedNodes.Visitor) visitor));
 
             String result = visitor.getResult();
             if (result.length() > 0) {
@@ -134,6 +139,7 @@ public class AntiPatternHelper {
                     " For anti-pattern:" + visitor.getName());
             logger.error(e.getMessage(), e);
         }
+    }
     }
 
     // THE ORDER HERE MATTERS
