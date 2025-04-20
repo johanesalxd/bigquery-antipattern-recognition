@@ -1,5 +1,7 @@
 package com.google.zetasql.toolkit.antipattern.analyzer.visitors; // Adjust package if needed
 
+import com.google.cloud.bigquery.Clustering;
+import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table; // Using google-cloud-bigquery Table
 import com.google.cloud.bigquery.TableDefinition;
@@ -8,7 +10,11 @@ import com.google.zetasql.resolvedast.ResolvedNodes.ResolvedTableScan;
 import com.google.zetasql.toolkit.antipattern.AntiPatternVisitor;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,11 +29,21 @@ public class ClusteringCheckVisitor extends ResolvedNodes.Visitor implements Ant
             "Table: %s is not clustered. Consider clustering large tables for performance and cost optimization.";
 
     private final BigQueryService service;
-    // Use a Set to store names of tables found to be unpartitioned (avoids duplicates)
+    // Use a Set to store names of tables found to be unclustered (avoids duplicates)
+    private boolean containsUnclusteredTables = false;
     private final Set<String> unclusteredTablesFound = new HashSet<>();
+    private HashMap<String, List<String>> clusteringFields = new HashMap<>();
 
     public ClusteringCheckVisitor(BigQueryService service) {
         this.service = service;
+    }
+
+    public HashMap<String, List<String>> getClustering() {
+        return clusteringFields;
+      }
+    
+      public boolean getContainsUnclusteredTables() {
+        return containsUnclusteredTables;
     }
 
     @Override
@@ -84,6 +100,12 @@ public class ClusteringCheckVisitor extends ResolvedNodes.Visitor implements Ant
                     // Store the fully qualified name if table is not clustered
                     // Assumes you rename unclusteredTablesFound -> unclusteredTablesFound
                     unclusteredTablesFound.add(actualTableName);
+                    containsUnclusteredTables = true;
+                }
+                else {
+                    Clustering clustering = stdDef.getClustering();
+                    //System.out.println(clustering.getFields());
+                    clusteringFields.put(actualTableName, clustering.getFields());
                 }
             }
             }
