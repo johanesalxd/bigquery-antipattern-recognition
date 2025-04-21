@@ -72,7 +72,7 @@ public class IdentifyComplexFilteronClusteringColumnTest {
     }
 
     @Test
-    public void clusteringKeysUsedInWhere() {
+    public void clusteringKeysUsedInNotComplexWhere() {
       String expected = "";
       String query = "SELECT wiki "
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"

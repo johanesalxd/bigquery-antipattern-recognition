@@ -55,7 +55,7 @@ public class IdentifyClusteringOrderTest {
     }
 
     @Test
-    public void clusteringKeysUsedInComplexWhere() {
+    public void clusteringOutofOrder() {
       String expected = "Table: `bigquery-public-data.wikipedia.pageviews_2025` is clustered by [wiki, title]. Filters were found on clustering keys in the order [title, wiki]. This differs from the defined clustering order. For optimal cluster pruning, filter predicates using equality should reference keys sequentially (e.g., filter 'wiki' first, then 'title', etc.).";
       String query = "SELECT wiki "
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
@@ -72,21 +72,22 @@ public class IdentifyClusteringOrderTest {
       assertEquals(expected, recommendation);
     }
 
-    // @Test
-    // public void clusteringKeysUsedInWhere() {
-    //   String expected = "";
-    //   String query = "SELECT wiki "
-    //       + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
-    //       + "WHERE wiki = 'sf'";
+    @Test
+    public void clusteringInOrder() {
+      String expected = "";
+      String query = "SELECT wiki "
+          + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
+          + "WHERE wiki = 'sf' and title='sf'";
 
-    //   Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
-    //   Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
-    //   ClusteringKey visitor = new ClusteringKeyFunctionVisitor(clusteringInfo);
-    //   statementIterator.forEachRemaining(statement -> statement.accept(visitor));
-    //   String recommendation = visitor.getResult();
+      Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
+      ClusteringOrderVisitor visitor = new ClusteringOrderVisitor(clusteringInfo);
+      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      String recommendation = visitor.getResult();
+      System.out.println(recommendation);
 
-    //   assertEquals(expected, recommendation);
-    // }
+      assertEquals(expected, recommendation);
+    }
 
 }

@@ -55,11 +55,29 @@ public class IdentifyClusteringColCompareTest {
     }
 
     @Test
-    public void clusteringKeysUsedInComplexWhere() {
+    public void clusteringKeysComparedTest() {
       String expected = "Potential anti-pattern: Comparison ($equal) between two clustering keys: '`bigquery-public-data.wikipedia.pageviews_2025`.title' and '`bigquery-public-data.wikipedia.pageviews_2025`.wiki'. Comparing clustering keys directly against each other can be inefficient and may hinder cluster pruning.";
       String query = "SELECT wiki "
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE title = wiki";
+
+      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+
+      Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
+      ClusterColComparisonVisitor visitor = new ClusterColComparisonVisitor(clusteringInfo);
+      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      String recommendation = visitor.getResult();
+      System.out.println(recommendation);
+
+      assertEquals(expected, recommendation);
+    }
+
+    @Test
+    public void clusteringKeysNotComparedTest() {
+      String expected = "";
+      String query = "SELECT wiki "
+          + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
+          + "WHERE title = CAST(views as STRING)";
 
       Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
