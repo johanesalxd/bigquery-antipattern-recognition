@@ -32,8 +32,8 @@ public class PrintAnalyzerDebugString {
     String query = "SELECT  \n"
     + "wiki,\n"
     + "FROM\n"
-    + "  `bigquery-public-data.wikipedia.pageviews_2025` as pg\n"
-    + "WHERE pg.wiki = 'af'"
+    + "  `bigquery-public-data.wikipedia.pageviews_2025`\n"
+    + "WHERE CONCAT(wiki, ':123') = 'af:123'"
     + ";";
 
     catalog.addAllTablesUsedInQuery(query, options);

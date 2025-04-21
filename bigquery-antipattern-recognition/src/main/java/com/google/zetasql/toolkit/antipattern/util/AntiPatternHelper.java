@@ -25,7 +25,6 @@ import com.google.zetasql.resolvedast.ResolvedNodes;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
 import com.google.zetasql.toolkit.antipattern.AntiPatternVisitor;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.ClusteringCheckVisitor;
-import com.google.zetasql.toolkit.antipattern.analyzer.visitors.ClusteringKeysUsedVisitor;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.PartitionCheckVisitor;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.joinorder.JoinOrderVisitor;
 import com.google.zetasql.toolkit.antipattern.cmd.InputQuery;
@@ -106,146 +105,41 @@ public class AntiPatternHelper {
         String currentProject;
 
         if (inputQuery.getProjectId() == null) {
-            currentProject = this.project; // Assuming 'this.project' is the default
+            currentProject = this.project;
         } else {
             currentProject = inputQuery.getProjectId();
         }
 
-        // --- 1. Setup Catalog (Consider potential improvements for efficiency if project doesn't change often) ---
-        BigQueryCatalog catalog = new BigQueryCatalog(""); // Revisit if default project needed here
+        BigQueryCatalog catalog = new BigQueryCatalog("");
         if ((this.analyzerProject == null || !this.analyzerProject.equals(currentProject))) {
-            logger.info("Setting up new catalog for project: {}", currentProject);
-            this.analyzerProject = currentProject;
-            // Ensure 'this.resourceProvider' and 'this.analyzerOptions' are correctly initialized/scoped
+            this.analyzerProject = inputQuery.getProjectId();
             catalog = new BigQueryCatalog(this.analyzerProject, this.resourceProvider);
-            try {
-                catalog.addAllTablesUsedInQuery(query, this.analyzerOptions);
-            } catch (Exception e) {
-                logger.error("Error adding tables to catalog for query id: {}. Aborting analysis for this query.", inputQuery.getQueryId(), e);
-                return; // Can't proceed without a catalog
-            }
-        } else {
-            logger.info("Reusing existing catalog setup for project: {}", this.analyzerProject);
-            // Assuming catalog associated with this.analyzerProject is implicitly available or re-fetched if needed.
-            // If catalog state is crucial and might change, you might need to reload tables here too.
-            // Recreating for safety in this example:
-             catalog = new BigQueryCatalog(this.analyzerProject, this.resourceProvider);
-             try {
-                catalog.addAllTablesUsedInQuery(query, this.analyzerOptions);
-             } catch (Exception e) {
-                logger.error("Error adding tables to catalog (reuse path) for query id: {}. Aborting analysis for this query.", inputQuery.getQueryId(), e);
-                return;
-             }
+            catalog.addAllTablesUsedInQuery(query, this.analyzerOptions);
         }
+        List<AntiPatternVisitor> parserVisitorList = Arrays.asList(new JoinOrderVisitor(this.service), new PartitionCheckVisitor(this.service), new ClusteringCheckVisitor(this.service));
+        for (AntiPatternVisitor visitor : parserVisitorList) {
 
-        // --- 2. Analyze Query ONCE ---
-        List<ResolvedNodes.ResolvedStatement> resolvedStatements = new ArrayList<>();
+        //JoinOrderVisitor visitor = new JoinOrderVisitor(this.service);
+        if(this.visitorMetricsMap.get(visitor.getName()) == null) {
+            this.visitorMetricsMap.put(visitor.getName(), 0);
+            this.visitorMetricsMap.merge(visitor.getName(), 1, Integer::sum);
+        }
         try {
-            logger.info("Analyzing query with id: {}", inputQuery.getQueryId());
+            logger.info("Analyzing query with id: " + inputQuery.getQueryId() +
+                    " For anti-pattern:" + visitor.getName());
             Iterator<ResolvedNodes.ResolvedStatement> statementIterator = this.analyzer.analyzeStatements(query, catalog);
-            statementIterator.forEachRemaining(resolvedStatements::add); // Collect statement(s)
-        } catch (Exception e) {
-            logger.error("Fatal error analyzing query with id: {}. Skipping visitor checks.", inputQuery.getQueryId(), e);
-            return; // Cannot proceed if analysis fails
-        }
+            statementIterator.forEachRemaining(statement -> statement.accept((ResolvedNodes.Visitor) visitor));
 
-        if (resolvedStatements.isEmpty()) {
-            logger.warn("Query analysis did not produce any statements for query id: {}", inputQuery.getQueryId());
-            return; // Nothing to visit
-        }
-
-        // --- 3. Run Independent Visitors ---
-        List<AntiPatternVisitor> independentVisitors = Arrays.asList(
-            new JoinOrderVisitor(this.service),
-            new PartitionCheckVisitor(this.service)
-            // Add any other visitors that DO NOT have dependencies here
-        );
-
-        for (AntiPatternVisitor visitor : independentVisitors) {
-            runVisitor(visitor, resolvedStatements, inputQuery.getQueryId(), visitorsThatFoundAntiPatterns);
-        }
-
-        // --- 4. Run Sequential Clustering Visitors ---
-
-        // 4a. Run the first clustering visitor
-        ClusteringCheckVisitor clusteringCheckVisitor = new ClusteringCheckVisitor(this.service);
-        runVisitor(clusteringCheckVisitor, resolvedStatements, inputQuery.getQueryId(), visitorsThatFoundAntiPatterns);
-
-        // 4b. Get the clustering info needed for the second visitor
-        Map<String, List<String>> clusteringInfo = clusteringCheckVisitor.getClustering(); // Assuming method is getClustering()
-
-        // 4c. Conditionally run the second clustering visitor
-        if (!clusteringCheckVisitor.getContainsUnclusteredTables()) {
-            logger.info("Found clustered tables. Running ClusteringKeysUsedVisitor for query id: {}", inputQuery.getQueryId());
-            ClusteringKeysUsedVisitor clusteringKeysUsedVisitor = new ClusteringKeysUsedVisitor(clusteringInfo);
-
-            // Run the visitor (AST traversal)
-            try {
-                for (ResolvedNodes.ResolvedStatement statement : resolvedStatements) {
-                    // Ensure casting is correct based on your interfaces/inheritance
-                    statement.accept((ResolvedNodes.Visitor) clusteringKeysUsedVisitor);
-                }
-
-                // IMPORTANT: Analyze usage AFTER traversal
-                clusteringKeysUsedVisitor.analyzeKeyUsage();
-
-                // Get result and add to list if applicable
-                String usageResult = clusteringKeysUsedVisitor.getResult();
-                if (usageResult != null && !usageResult.isEmpty()) {
-                    logger.info("Anti-pattern found by {}: {}", clusteringKeysUsedVisitor.getName(), usageResult);
-                    visitorsThatFoundAntiPatterns.add(clusteringKeysUsedVisitor);
-                    // Update metrics if needed
-                    this.visitorMetricsMap.computeIfAbsent(clusteringKeysUsedVisitor.getName(), k -> 0);
-                    this.visitorMetricsMap.merge(clusteringKeysUsedVisitor.getName(), 1, Integer::sum);
-                } else {
-                     logger.info("No unused clustering keys found by {} for query id: {}", clusteringKeysUsedVisitor.getName(), inputQuery.getQueryId());
-                }
-
-            } catch (ClassCastException cce) {
-                 logger.error("Visitor {} does not seem to be a ResolvedNodes.Visitor. Query id: {}", clusteringKeysUsedVisitor.getName(), inputQuery.getQueryId(), cce);
-            } catch (Exception e) {
-                logger.error("Error running visitor {} for query id: {}", clusteringKeysUsedVisitor.getName(), inputQuery.getQueryId(), e);
+            String result = visitor.getResult();
+            if (result.length() > 0) {
+                visitorsThatFoundAntiPatterns.add(visitor);
             }
-        } else {
-            logger.info("Skipping ClusteringKeysUsedVisitor for query id: {} as no clustered tables were detected by ClusteringCheckVisitor.", inputQuery.getQueryId());
+        } catch (Exception e) {
+            logger.error("Error analyzing query with id: " + inputQuery.getQueryId() +
+                    " For anti-pattern:" + visitor.getName());
+            logger.error(e.getMessage(), e);
         }
     }
-
-    /**
-     * Helper method to run a visitor on all statements and handle results/errors.
-     * @param visitor The AntiPatternVisitor instance (must also be a ResolvedNodes.Visitor)
-     * @param statements The list of resolved statements from the analyzer.
-     * @param queryId The ID of the query being analyzed.
-     * @param visitorsThatFoundAntiPatterns The output list to add visitors to if they find anti-patterns.
-     */
-    private void runVisitor(AntiPatternVisitor visitor, List<ResolvedNodes.ResolvedStatement> statements, String queryId, List<AntiPatternVisitor> visitorsThatFoundAntiPatterns) {
-        // Update metrics map (assuming it should be updated for every visitor run attempt)
-        this.visitorMetricsMap.computeIfAbsent(visitor.getName(), k -> 0);
-        this.visitorMetricsMap.merge(visitor.getName(), 1, Integer::sum);
-
-        try {
-            logger.info("Running visitor: {} for query id: {}", visitor.getName(), queryId);
-            // Cast to the base ResolvedNodes.Visitor for the accept method
-            ResolvedNodes.Visitor resolvedVisitor = (ResolvedNodes.Visitor) visitor;
-            for (ResolvedNodes.ResolvedStatement statement : statements) {
-                statement.accept(resolvedVisitor);
-            }
-
-            // Get the result AFTER visiting all statements
-            String result = visitor.getResult();
-            if (result != null && !result.isEmpty()) {
-                logger.info("Anti-pattern found by {}: {}", visitor.getName(), result);
-                visitorsThatFoundAntiPatterns.add(visitor);
-            } else {
-                 logger.info("No anti-patterns found by {} for query id: {}", visitor.getName(), queryId);
-            }
-        } catch (ClassCastException cce) {
-            // Handle cases where an AntiPatternVisitor might not be a ResolvedNodes.Visitor
-            logger.error("Visitor {} cannot be cast to ResolvedNodes.Visitor. Query id: {}", visitor.getName(), queryId, cce);
-        } catch (Exception e) {
-            // Catch potential errors during the visit or getResult methods
-            logger.error("Error running visitor {} for query id: {}", visitor.getName(), queryId, e);
-        }
     }
 
     // THE ORDER HERE MATTERS

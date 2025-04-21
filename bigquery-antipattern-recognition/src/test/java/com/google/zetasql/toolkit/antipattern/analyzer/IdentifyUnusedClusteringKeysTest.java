@@ -73,7 +73,7 @@ public class IdentifyUnusedClusteringKeysTest {
 
     @Test
     public void clusteringKeysNotUsedInWhere() {
-      String expected = "Table: `bigquery-public-data.wikipedia.pageviews_2025` is clustered by wiki, title, but these keys were not referenced in WHERE, JOIN ON, or GROUP BY clauses. Clustering might not provide significant benefits for this query.";
+      String expected = "Table: `bigquery-public-data.wikipedia.pageviews_2025` is clustered by [wiki, title], but these keys were not referenced in WHERE, JOIN ON, or GROUP BY clauses. Clustering might not provide significant benefits for this query.";
       String query = "SELECT wiki "
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE views = 1";
