@@ -1,10 +1,10 @@
-package com.google.zetasql.toolkit.antipattern.analyzer.visitors; // Adjust package if needed
+package com.google.zetasql.toolkit.antipattern.analyzer.visitors;
 
 import com.google.zetasql.resolvedast.ResolvedNodes;
 import com.google.zetasql.resolvedast.ResolvedNodes.ResolvedFilterScan;
-import com.google.zetasql.resolvedast.ResolvedNodes.ResolvedTableScan;
+// Import other necessary Resolved nodes if checking JOINs etc.
+// import com.google.zetasql.resolvedast.ResolvedNodes.ResolvedJoinScan;
 import com.google.zetasql.toolkit.antipattern.AntiPatternVisitor;
-import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService; // Not used directly here, but needed by caller
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,21 +16,18 @@ import java.util.stream.Collectors;
 /**
  * Visitor to identify cases where functions are applied to clustering key columns
  * within filter predicates, potentially hindering cluster pruning.
- * Requires a map of clustered tables to their keys as input.
+ * Requires clustering info as input. Assumes ResolvedColumn.getTableName() works.
  */
 public class ClusteringKeyFunctionVisitor extends ResolvedNodes.Visitor implements AntiPatternVisitor {
 
     public static final String NAME = "FunctionOnClusteringKeyCheck";
-    // Recommendation message is generated dynamically by the helper visitor
 
-    // Input: Map of clustered_table_name -> List<clustering_key_columns>
-    private final Map<String, List<String>> clusteringFields;
+    private final Map<String, List<String>> clusteringFields; // Input
+    private final Set<String> findings = new HashSet<>(); // Output
 
-    // Output: Set of unique warning messages found
-    private final Set<String> findings = new HashSet<>();
-
-    public ClusteringKeyFunctionVisitor(Map<String, List<String>> clusteringFields) {
-        // Defensive copy might be good practice
+    public ClusteringKeyFunctionVisitor(
+            Map<String, List<String>> clusteringFields) {
+        // Defensive copy might be good
         this.clusteringFields = new HashMap<>(clusteringFields);
     }
 
@@ -39,54 +36,33 @@ public class ClusteringKeyFunctionVisitor extends ResolvedNodes.Visitor implemen
         return NAME;
     }
 
-    /**
-     * Returns a string containing warnings about functions applied to clustering keys
-     * within filter predicates, or an empty string if none were found.
-     */
     @Override
     public String getResult() {
         if (findings.isEmpty()) {
             return "";
         }
-        // Sort findings for consistent output order
         return findings.stream().sorted().collect(Collectors.joining("\n"));
     }
 
     /**
-     * Visits ResolvedFilterScan nodes to analyze the filter expression for
-     * functions applied to clustering keys.
-     * @param node The ResolvedFilterScan node from the ZetaSQL AST.
+     * Visits ResolvedFilterScan nodes and uses a helper visitor to analyze
+     * the filter expression, relying on ResolvedColumn.getTableName().
      */
     @Override
     public void visit(ResolvedFilterScan node) {
-        // 1. Identify Input Table - Focusing on single ResolvedTableScan input for simplicity
-        String targetTableName = null;
-        List<String> keysForTable = null;
-
-        if (node.getInputScan() instanceof ResolvedTableScan) {
-            ResolvedTableScan inputTableScan = (ResolvedTableScan) node.getInputScan();
-            // Assuming getFullName provides format "project.dataset.table"
-            targetTableName = inputTableScan.getTable().getFullName();
-            keysForTable = clusteringFields.get(targetTableName);
+        // Analyze the filter expression universally using the helper.
+        // The helper now gets the table name directly from the column object.
+        if (node.getFilterExpr() != null) {
+            // Helper visitor just needs the clustering map and the findings set now
+            FunctionOnClusteringColumnFinder functionFinder =
+                new FunctionOnClusteringColumnFinder(clusteringFields, findings);
+            node.getFilterExpr().accept(functionFinder);
         }
 
-        // 2. Proceed only if it's a single table scan with known clustering keys
-        if (targetTableName != null && keysForTable != null && !keysForTable.isEmpty()) {
-
-            // 3. Use the helper visitor to scan the filter expression for the anti-pattern
-            if (node.getFilterExpr() != null) {
-                FunctionOnClusteringColumnFinder functionFinder =
-                    new FunctionOnClusteringColumnFinder(targetTableName, keysForTable, findings);
-                node.getFilterExpr().accept(functionFinder);
-            }
-        }
-
-        // 4. Continue traversal for nested filters or other structures
+        // Continue traversal to find ALL filter scans in the tree
         super.visit(node);
     }
 
-    // NOTE: This visitor primarily checks filters directly applied to a table scan.
-    // Filters applied after joins might require analyzing ResolvedFilterScan nodes
-    // higher up the tree and more complex logic to determine the relevant table(s).
-    // The heuristic used in the helper visitor for table name resolution is a limitation.
-}  
+    // Add overrides for visitResolvedJoinScan etc. if desired, using the same helper
+    // to check join expressions.
+}
