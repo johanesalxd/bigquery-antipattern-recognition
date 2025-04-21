@@ -33,7 +33,7 @@ public class PrintAnalyzerDebugString {
     + "wiki,\n"
     + "FROM\n"
     + "  `bigquery-public-data.wikipedia.pageviews_2025`\n"
-    + "WHERE CONCAT(wiki, ':123') = 'af:123'"
+    + "WHERE wiki='123' and title='abc'"
     + ";";
 
     catalog.addAllTablesUsedInQuery(query, options);

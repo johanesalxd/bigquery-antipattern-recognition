@@ -1,6 +1,6 @@
-package com.google.zetasql.toolkit.antipattern.analyzer; // Same package? OK.
+package com.google.zetasql.toolkit.antipattern.analyzer;
 
-import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyfunction.ClusteringKeyFunctionVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringonclustering.ClusterColComparisonVisitor;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyused.ClusteringKeysUsedVisitor;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryCatalog;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryAPIResourceProvider;
@@ -21,7 +21,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 
-public class IdentifyComplexFilteronClusteringColumnTest {
+public class IdentifyClusteringColCompareTest {
 
     LanguageOptions languageOptions;
     AnalyzerOptions analyzerOptions;
@@ -56,36 +56,19 @@ public class IdentifyComplexFilteronClusteringColumnTest {
 
     @Test
     public void clusteringKeysUsedInComplexWhere() {
-      String expected = "Potential anti-pattern: Function 'concat' used on clustering key 'wiki' of table '`bigquery-public-data.wikipedia.pageviews_2025`' within a predicate ($equal). This often prevents cluster pruning. Consider applying functions to constants/parameters instead (e.g., `key = FUNC(value)` instead of `FUNC(key) = value`).";
+      String expected = "Potential anti-pattern: Comparison ($equal) between two clustering keys: '`bigquery-public-data.wikipedia.pageviews_2025`.title' and '`bigquery-public-data.wikipedia.pageviews_2025`.wiki'. Comparing clustering keys directly against each other can be inefficient and may hinder cluster pruning.";
       String query = "SELECT wiki "
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
-          + "WHERE CONCAT(wiki, ':') = 'sf:'";
+          + "WHERE title = wiki";
 
       Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
       Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
-      ClusteringKeyFunctionVisitor visitor = new ClusteringKeyFunctionVisitor(clusteringInfo);
+      ClusterColComparisonVisitor visitor = new ClusterColComparisonVisitor(clusteringInfo);
       statementIterator.forEachRemaining(statement -> statement.accept(visitor));
       String recommendation = visitor.getResult();
+      System.out.println(recommendation);
 
       assertEquals(expected, recommendation);
     }
-
-    @Test
-    public void clusteringKeysUsedInWhere() {
-      String expected = "";
-      String query = "SELECT wiki "
-          + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
-          + "WHERE wiki = 'sf'";
-
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
-
-      Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
-      ClusteringKeyFunctionVisitor visitor = new ClusteringKeyFunctionVisitor(clusteringInfo);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
-      String recommendation = visitor.getResult();
-
-      assertEquals(expected, recommendation);
-    }
-
-}
+  }

@@ -1,4 +1,4 @@
-package com.google.zetasql.toolkit.antipattern.analyzer.visitors; // Adjust package if needed
+package com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyused; // Adjust package if needed
 
 import com.google.zetasql.resolvedast.ResolvedNodes.ResolvedColumnRef;
 import com.google.zetasql.resolvedast.ResolvedNodes.ResolvedExpr;

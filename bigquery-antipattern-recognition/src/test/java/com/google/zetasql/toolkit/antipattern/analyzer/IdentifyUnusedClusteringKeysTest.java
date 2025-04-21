@@ -1,10 +1,10 @@
 package com.google.zetasql.toolkit.antipattern.analyzer; // Same package? OK.
 
-import com.google.zetasql.toolkit.antipattern.analyzer.visitors.ClusteringKeysUsedVisitor; // Import the new visitor
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryCatalog;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryAPIResourceProvider;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyused.ClusteringKeysUsedVisitor;
 import com.google.zetasql.AnalyzerOptions;
 import com.google.zetasql.toolkit.options.BigQueryLanguageOptions;
 import com.google.zetasql.resolvedast.ResolvedNodes;

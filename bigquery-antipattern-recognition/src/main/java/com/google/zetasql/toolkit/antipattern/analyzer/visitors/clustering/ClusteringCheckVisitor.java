@@ -1,4 +1,4 @@
-package com.google.zetasql.toolkit.antipattern.analyzer.visitors; // Adjust package if needed
+package com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering; // Adjust package if needed
 
 import com.google.cloud.bigquery.Clustering;
 import com.google.cloud.bigquery.Field;

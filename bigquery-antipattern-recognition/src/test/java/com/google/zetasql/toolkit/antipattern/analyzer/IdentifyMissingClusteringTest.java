@@ -1,9 +1,9 @@
 package com.google.zetasql.toolkit.antipattern.analyzer;
-import com.google.zetasql.toolkit.antipattern.analyzer.visitors.ClusteringCheckVisitor;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryCatalog;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryAPIResourceProvider;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.ClusteringCheckVisitor;
 import com.google.zetasql.AnalyzerOptions;
 import com.google.zetasql.toolkit.options.BigQueryLanguageOptions;
 import com.google.zetasql.resolvedast.ResolvedNodes;
