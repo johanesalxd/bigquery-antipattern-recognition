@@ -60,7 +60,7 @@ class OrderedClusteringKeyEqualityFinder extends ResolvedNodes.Visitor {
             if (colRef != null) {
                 ResolvedColumn column = colRef.getColumn();
                 String colName = column.getName();
-                String sourceTableName = "`"+column.getTableName()+"`"; // Assumes FQN
+                String sourceTableName = column.getTableName(); // Assumes FQN
 
                 // Check if it's the target table and one of its clustering keys
                 if (targetTableName.equals(sourceTableName) && clusteringKeys.contains(colName)) {

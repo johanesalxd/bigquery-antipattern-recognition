@@ -56,15 +56,15 @@ public class ClusteringOrderVisitor extends ResolvedNodes.Visitor implements Ant
         String targetTableName = null;
         List<String> definedOrderedKeys = null;
 
+
         // 1. Identify Input Table and its defined clustering order
         if (node.getInputScan() instanceof ResolvedTableScan) {
             ResolvedTableScan inputTableScan = (ResolvedTableScan) node.getInputScan();
-            targetTableName = "`" + inputTableScan.getTable().getFullName() + "`";
+            targetTableName = inputTableScan.getTable().getFullName();
             definedOrderedKeys = clusteringFields.get(targetTableName);
         }
 
         System.out.println("+++++++");
-
         System.out.println(definedOrderedKeys);
 
         // 2. Proceed only if it's a single table scan with known, non-empty clustering keys
@@ -77,7 +77,6 @@ public class ClusteringOrderVisitor extends ResolvedNodes.Visitor implements Ant
             if (node.getFilterExpr() != null) {
                 node.getFilterExpr().accept(keyFinder);
             }
-
             // 4. Compare the order of filtered keys to the defined prefix order
             if (!filteredKeysInOrder.isEmpty()) {
                 boolean orderMatchesPrefix = true;

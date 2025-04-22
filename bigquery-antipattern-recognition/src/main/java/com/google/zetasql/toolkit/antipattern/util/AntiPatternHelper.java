@@ -154,7 +154,7 @@ public class AntiPatternHelper {
 
             if(!clusteringCheckVisitor.getContainsUnclusteredTables()){
                 Map<String, List<String>> clusteringInfo = clusteringCheckVisitor.getClustering();
-                List<AntiPatternVisitor> dependentAnalyzers = Arrays.asList(new ClusteringKeysUsedVisitor(clusteringInfo),new ClusteringKeyFunctionVisitor(clusteringInfo),new ClusteringOrderVisitor(clusteringInfo),new ClusteringKeyFunctionVisitor(clusteringInfo));
+                List<AntiPatternVisitor> dependentAnalyzers = Arrays.asList(new ClusteringKeysUsedVisitor(clusteringInfo),new ClusteringKeyFunctionVisitor(clusteringInfo),new ClusteringOrderVisitor(clusteringInfo),new ClusteringKeyFunctionVisitor(clusteringInfo), new ClusterColComparisonVisitor(clusteringInfo));
 
                 for (AntiPatternVisitor visitor : dependentAnalyzers) {
 

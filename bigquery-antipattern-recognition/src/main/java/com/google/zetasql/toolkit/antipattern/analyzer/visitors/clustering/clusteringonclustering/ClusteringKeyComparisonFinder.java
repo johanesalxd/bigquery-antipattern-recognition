@@ -57,8 +57,8 @@ class ClusterKeyComparisonFinder extends ResolvedNodes.Visitor {
                 String colName2 = col2.getName();
 
                 // Use getTableName() directly as confirmed by user
-                String tableName1 = "`"+col1.getTableName()+"`";
-                String tableName2 = "`"+col2.getTableName()+"`";;
+                String tableName1 = col1.getTableName();
+                String tableName2 = col2.getTableName();
 
                 if (tableName1 != null && tableName2 != null) {
                     // Check if table1 has clustering keys defined

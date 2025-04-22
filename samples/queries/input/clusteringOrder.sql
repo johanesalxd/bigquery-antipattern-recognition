@@ -15,6 +15,4 @@
  */
 SELECT wiki
 FROM `bigquery-public-data.wikipedia.pageviews_2025`
-WHERE title='ex'
-AND 
-wiki = 'ex';
+WHERE title ='sf' AND wiki='sf';

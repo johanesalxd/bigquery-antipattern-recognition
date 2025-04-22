@@ -50,13 +50,13 @@ public class IdentifyClusteringOrderTest {
 
     private Map<String, List<String>> getClusteringInfoForTable() {
         Map<String, List<String>> clusteringInfo = new HashMap<>();
-        clusteringInfo.put(PUBLIC_CLUSTERED_TABLE, PUBLIC_CLUSTERING_COLUMNS);
+        clusteringInfo.put(PUBLIC_CLUSTERED_TABLE.replaceAll("`", ""), PUBLIC_CLUSTERING_COLUMNS);
         return clusteringInfo;
     }
 
     @Test
     public void clusteringOutofOrder() {
-      String expected = "Table: `bigquery-public-data.wikipedia.pageviews_2025` is clustered by [wiki, title]. Filters were found on clustering keys in the order [title, wiki]. This differs from the defined clustering order. For optimal cluster pruning, filter predicates using equality should reference keys sequentially (e.g., filter 'wiki' first, then 'title', etc.).";
+      String expected = "Table: bigquery-public-data.wikipedia.pageviews_2025 is clustered by [wiki, title]. Filters were found on clustering keys in the order [title, wiki]. This differs from the defined clustering order. For optimal cluster pruning, filter predicates using equality should reference keys sequentially (e.g., filter 'wiki' first, then 'title', etc.).";
       String query = "SELECT wiki "
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE title = 'sf' and wiki='sf'";

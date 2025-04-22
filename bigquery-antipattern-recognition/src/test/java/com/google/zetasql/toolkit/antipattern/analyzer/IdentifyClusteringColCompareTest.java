@@ -50,7 +50,7 @@ public class IdentifyClusteringColCompareTest {
 
     private Map<String, List<String>> getClusteringInfoForTable() {
         Map<String, List<String>> clusteringInfo = new HashMap<>();
-        clusteringInfo.put(PUBLIC_CLUSTERED_TABLE, PUBLIC_CLUSTERING_COLUMNS);
+        clusteringInfo.put(PUBLIC_CLUSTERED_TABLE.replaceAll("`", ""), PUBLIC_CLUSTERING_COLUMNS);
         return clusteringInfo;
     }
 
