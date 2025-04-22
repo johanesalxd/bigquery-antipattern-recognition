@@ -70,4 +70,21 @@ public class IdentifyMissingClusteringTest {
       String recommendation = visitor.getResult();
       assertEquals(expected, recommendation);
     }
+
+    @Test
+    public void SimpleTableisNotClusteredTwoDifferentProjects() {
+      String expected = "Table: afleisc-udf-test.test.flow_stats is not clustered. Consider clustering large tables for performance and cost optimization.\n"
+      +"Table: bigquery-public-data.crypto_bitcoin.transactions is not clustered. Consider clustering large tables for performance and cost optimization.";
+      String query = "SELECT  \n"
+      + "t1.block_hash FROM \n"
+      + "`bigquery-public-data.crypto_bitcoin.transactions` t1 \n"
+      + "JOIN `afleisc-udf-test.test.flow_stats` t2 ON t1.block_hash=t2.block_hash \n"
+      + "WHERE t1.block_timestamp_month = DATE('2009-01-01');";
+      catalog.addAllTablesUsedInQuery(query, analyzerOptions);
+      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      ClusteringCheckVisitor visitor = new ClusteringCheckVisitor(service);
+      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      String recommendation = visitor.getResult();
+      assertEquals(expected, recommendation);
+    }
 }
