@@ -25,6 +25,7 @@ import com.google.zetasql.toolkit.antipattern.cmd.InputQuery;
 import com.google.zetasql.toolkit.antipattern.models.BigQueryRemoteFnRequest;
 import com.google.zetasql.toolkit.antipattern.models.BigQueryRemoteFnResponse;
 import com.google.zetasql.toolkit.antipattern.models.BigQueryRemoteFnResult;
+import com.google.zetasql.toolkit.antipattern.rewriter.gemini.GeminiRewriter;
 import com.google.zetasql.toolkit.antipattern.util.AntiPatternHelper;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,13 +39,18 @@ import java.util.stream.Collectors;
 public class AntiPatternController {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final String projectId;
+
+    public AntiPatternController() {
+        this.projectId = System.getenv("PROJECT_ID");
+    }
 
     @PostMapping("/")
     public ObjectNode analyzeQueries(@RequestBody BigQueryRemoteFnRequest request) {
         ArrayNode replies = objectMapper.createArrayNode();
 
         for (JsonNode call : request.getCalls()) {
-            BigQueryRemoteFnResponse queryResponse = analyzeSingleQuery(call);
+            BigQueryRemoteFnResponse queryResponse = analyzeSingleQuery(call, false);
             ObjectNode resultNode = objectMapper.valueToTree(queryResponse);
             replies.add(resultNode);
         }
@@ -54,25 +60,69 @@ public class AntiPatternController {
         return finalResponse;
     }
 
-    private BigQueryRemoteFnResponse analyzeSingleQuery(JsonNode call) {
+    @PostMapping("/rewrite")
+    public ObjectNode analyzeAndRewriteQueries(@RequestBody BigQueryRemoteFnRequest request) {
+        ArrayNode replies = objectMapper.createArrayNode();
+
+        for (JsonNode call : request.getCalls()) {
+            BigQueryRemoteFnResponse queryResponse = analyzeSingleQuery(call, true);
+            ObjectNode resultNode = objectMapper.valueToTree(queryResponse);
+            replies.add(resultNode);
+        }
+
+        ObjectNode finalResponse = objectMapper.createObjectNode();
+        finalResponse.set("replies", replies);
+        return finalResponse;
+    }
+
+    private BigQueryRemoteFnResponse analyzeSingleQuery(JsonNode call, boolean enableRewrite) {
         try {
             InputQuery inputQuery = new InputQuery(call.get(0).asText(), "query provided by UDF:");
             List<AntiPatternVisitor> visitors = findAntiPatterns(inputQuery);
             List<BigQueryRemoteFnResult> formattedAntiPatterns = new ArrayList<>();
+
             if (visitors.isEmpty()) {
                 formattedAntiPatterns.add(new BigQueryRemoteFnResult("None", "No antipatterns found"));
             } else {
                 formattedAntiPatterns = BigQueryRemoteFnResponse.formatAntiPatterns(visitors);
             }
-            return new BigQueryRemoteFnResponse(formattedAntiPatterns, null);
+
+            String optimizedSql = null;
+            if (enableRewrite && !visitors.isEmpty()) {
+                optimizedSql = rewriteQueryWithAI(inputQuery.getQuery(), visitors);
+            }
+
+            return new BigQueryRemoteFnResponse(formattedAntiPatterns, optimizedSql, null);
         } catch (Exception e) {
-            return new BigQueryRemoteFnResponse(null, e.getMessage());
+            return new BigQueryRemoteFnResponse(null, null, e.getMessage());
+        }
+    }
+
+    private String rewriteQueryWithAI(String originalQuery, List<AntiPatternVisitor> antiPatterns) {
+        try {
+            if (projectId == null || projectId.isEmpty()) {
+                throw new IllegalStateException("PROJECT_ID environment variable is not set");
+            }
+
+            // Create a temporary InputQuery for rewriting
+            InputQuery inputQuery = new InputQuery(originalQuery, "query for AI rewrite");
+            AntiPatternHelper antiPatternHelper = new AntiPatternHelper(projectId, false);
+
+            // Use GeminiRewriter static method to rewrite the SQL
+            GeminiRewriter.rewriteSQL(inputQuery, antiPatterns, antiPatternHelper, 3, true);
+
+            // Return the optimized query if available, otherwise null
+            return inputQuery.getOptimizedQuery();
+        } catch (Exception e) {
+            // Log the error but don't fail the entire response
+            System.err.println("AI rewrite failed: " + e.getMessage());
+            return null;
         }
     }
 
     private List<AntiPatternVisitor> findAntiPatterns(InputQuery inputQuery) {
         List<AntiPatternVisitor> visitors = new ArrayList<>();
-        AntiPatternHelper antiPatternHelper = new AntiPatternHelper(null, false);
+        AntiPatternHelper antiPatternHelper = new AntiPatternHelper(projectId, false);
         antiPatternHelper.checkForAntiPatternsInQueryWithParserVisitors(inputQuery, visitors);
         return visitors;
     }
