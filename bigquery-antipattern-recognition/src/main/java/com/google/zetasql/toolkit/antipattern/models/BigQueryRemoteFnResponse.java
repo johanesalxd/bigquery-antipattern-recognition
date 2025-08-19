@@ -28,10 +28,18 @@ public class BigQueryRemoteFnResponse {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     List<BigQueryRemoteFnResult> antipatterns;
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String optimized_sql;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private String errorMessage;
 
     public BigQueryRemoteFnResponse(List<BigQueryRemoteFnResult> antipatterns, String errorMessage) {
         this.antipatterns = antipatterns;
+        this.errorMessage = errorMessage;
+    }
+
+    public BigQueryRemoteFnResponse(List<BigQueryRemoteFnResult> antipatterns, String optimizedSql, String errorMessage) {
+        this.antipatterns = antipatterns;
+        this.optimized_sql = optimizedSql;
         this.errorMessage = errorMessage;
     }
 
@@ -44,6 +52,14 @@ public class BigQueryRemoteFnResponse {
 
     public void setAntipatterns(List<BigQueryRemoteFnResult> antipatterns) {
         this.antipatterns = antipatterns;
+    }
+
+    public String getOptimized_sql() {
+        return optimized_sql;
+    }
+
+    public void setOptimized_sql(String optimized_sql) {
+        this.optimized_sql = optimized_sql;
     }
 
     public String getErrorMessage() {

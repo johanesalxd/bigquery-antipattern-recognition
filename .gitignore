@@ -13,8 +13,7 @@
 # limitations under the License.
 
 __pycache__/
-*.py[cod]
-*$py.class
+*.py
 dist/
 lib/
 !examples/terraform-resource-change-policy-library/lib
@@ -37,6 +36,7 @@ node_modules/
 .coverage
 htmlcov/
 *.iml
+*.json
 
 # Terraform
 # See: https://github.com/github/gitignore/blob/master/Terraform.gitignore
