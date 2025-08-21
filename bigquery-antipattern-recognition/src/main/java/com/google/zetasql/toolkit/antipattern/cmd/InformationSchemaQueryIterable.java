@@ -38,7 +38,7 @@ public class InformationSchemaQueryIterable implements Iterator<InputQuery> {
   public InformationSchemaQueryIterable(String processingProjectId, String customDaysBack,
       String startTime,
       String endTime, String customISTable, String infoSchemaSlotmsMin, String customTimeoutInSecs,
-      String customTopNPercent, String customRegion, String customInfoSchemaProject,
+      String customTopNPercent, String customRegion, String customInfoSchemaProject, Boolean groupQueries,
       String serviceAccountKeyfilePath)
       throws InterruptedException, IOException {
 
@@ -61,7 +61,7 @@ public class InformationSchemaQueryIterable implements Iterator<InputQuery> {
 
     TableResult tableResult =
         bigQueryHelper.getQueriesFromIS(daysBack, startTime, endTime, ISTable, slotsMsMin,
-            timeoutInSecs, topNPercent, region);
+            timeoutInSecs, topNPercent, region, groupQueries);
 
     fieldValueListIterator = tableResult.iterateAll().iterator();
   }

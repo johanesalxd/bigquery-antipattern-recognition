@@ -77,7 +77,8 @@ public class BigQueryHelper {
       Integer slotsMsMin,
       Long timeoutInSecs,
       Float topNPercent,
-      String region)
+      String region,
+      Boolean groupQueries)
       throws InterruptedException {
     String timeCriteria;
     if (StringUtils.isBlank(startTime) || StringUtils.isBlank(endTime)) {
@@ -107,7 +108,7 @@ public class BigQueryHelper {
       }
       timeCriteria = "  creation_time BETWEEN " + startTime + " AND " + endTime + "\n";
     }
-    return getQueriesFromIS(timeoutInSecs, timeCriteria, ISTable, slotsMsMin, topNPercent, region);
+    return getQueriesFromIS(timeoutInSecs, timeCriteria, ISTable, slotsMsMin, topNPercent, region, groupQueries);
   }
 
   private TableResult getQueriesFromIS(
@@ -116,34 +117,68 @@ public class BigQueryHelper {
       String ISTable,
       Integer slotsMsMin,
       Float topNPercent,
-      String region)
+      String region,
+      Boolean groupQueries)
       throws InterruptedException {
 
-    String query =
-        "SELECT\n"
-            + "  project_id,\n"
-            + "  CONCAT(project_id, \":"
-            + region.toUpperCase()
-            + ".\",  job_id) job_id, \n"
-            + "  query, \n"
-            + "  total_slot_ms / (1000 * 60 * 60 ) AS slot_hours, \n"
-            + "  user_email, \n"
-            + "  PERCENT_RANK() OVER(ORDER BY total_slot_ms desc) perc_rnk \n"
-            + "FROM\n"
-            + ISTable
-            + "\n"
-            + "WHERE \n"
-            + timeCriteria
-            + "  AND total_slot_ms > "
-            + slotsMsMin
-            + "\n"
-            + "  AND (reservation_id != 'default-pipeline' or reservation_id is null) \n"
-            + "  AND query not like '%INFORMATION_SCHEMA%' \n"
-            + "QUALIFY perc_rnk < "
-            + topNPercent
-            + "\n"
-            + "ORDER BY \n"
-            + "  project_id, start_time desc\n";
+    String query;
+
+    if (!groupQueries) {
+      query =
+          "SELECT\n"
+              + "  project_id,\n"
+              + "  CONCAT(project_id, \":"
+              + region.toUpperCase()
+              + ".\",  job_id) job_id, \n"
+              + "  query, \n"
+              + "  total_slot_ms / (1000 * 60 * 60 ) AS slot_hours, \n"
+              + "  user_email, \n"
+              + "  PERCENT_RANK() OVER(ORDER BY total_slot_ms desc) perc_rnk \n"
+              + "FROM\n"
+              + ISTable
+              + "\n"
+              + "WHERE \n"
+              + timeCriteria
+              + "  AND total_slot_ms > "
+              + slotsMsMin
+              + "\n"
+              + "  AND (statement_type != \"SCRIPT\" OR statement_type IS NULL)\n"
+              + "  AND (reservation_id != 'default-pipeline' or reservation_id IS NULL)\n"
+              + "  AND query not like '%INFORMATION_SCHEMA%' \n"
+              + "QUALIFY perc_rnk < "
+              + topNPercent
+              + "\n"
+              + "ORDER BY \n"
+              + "  project_id, start_time desc\n";
+    }
+    else {
+      query =
+          "SELECT project_id, job_id, query, slot_hours, user_email,"
+          + "PERCENT_RANK() OVER(ORDER BY slot_hours desc) perc_rnk \n"
+          + "FROM (\n"
+          + "SELECT\n"
+          + "array_agg(project_id)[0] as project_id, \n"
+          + "CONCAT(array_agg(project_id)[0], \":"
+          + region.toUpperCase()
+          + ".\",  array_agg(job_id)[0]) as job_id, \n"
+          + "query, sum(total_slot_ms / (1000 * 60 * 60 )) AS slot_hours, \n"
+          + "array_agg(user_email)[0] AS user_email\n"
+          + "FROM"
+          + ISTable + "\n"
+          + "WHERE \n"
+          + timeCriteria
+          + "  AND total_slot_ms > "
+          + slotsMsMin
+          + "\n"
+          + "  AND (statement_type != \"SCRIPT\" OR statement_type IS NULL)\n"
+          + "  AND (reservation_id != 'default-pipeline' or reservation_id IS NULL)\n"
+          + "  AND query not like '%INFORMATION_SCHEMA%' \n"
+          + "GROUP BY query \n"
+          + ")\n"
+          + "QUALIFY perc_rnk < "
+          + topNPercent + "\n"
+          + "ORDER BY slot_hours DESC";
+    }
 
     logger.info("Reading from INFORMATION_SCHEMA: \n" + query);
     QueryJobConfiguration queryConfig =

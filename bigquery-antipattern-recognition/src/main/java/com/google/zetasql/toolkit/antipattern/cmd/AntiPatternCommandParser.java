@@ -45,6 +45,8 @@ public class AntiPatternCommandParser {
       "read_from_info_schema_end_time";
   public static final String READ_FROM_INFO_SCHEMA_TIMEOUT_IN_SECS_OPTION_NAME =
       "read_from_info_schema_timeout_in_secs";
+    public static final String GROUP_QUERIES_OPTION_NAME =
+      "group_queries";
   public static final String INFO_SCHEMA_REGION = "info_schema_region";
   public static final String INFO_SCHEMA_MIN_SLOTMS = "info_schema_min_slotms";
   public static final String READ_FROM_INFO_SCHEMA_TABLE_OPTION_NAME = "info_schema_table_name";
@@ -148,6 +150,14 @@ public class AntiPatternCommandParser {
             .desc("set file path")
             .build();
     options.addOption(folderPath);
+
+    Option groupQueries =
+        Option.builder(GROUP_QUERIES_OPTION_NAME)
+        .argName(GROUP_QUERIES_OPTION_NAME)
+        .required(false)
+        .desc("group by query before analyzing and filtering by slot hours")
+        .build();
+    options.addOption(groupQueries);
 
     Option useInfoSchemaFlag =
         Option.builder(READ_FROM_INFO_SCHEMA_FLAG_NAME)
@@ -378,6 +388,7 @@ public class AntiPatternCommandParser {
     String customTopNPercent = cmd.getOptionValue(IS_TOP_N_PERC_JOBS_OPTION_NAME);
     String region = cmd.getOptionValue(INFO_SCHEMA_REGION);
     String infoSchemaProject = cmd.getOptionValue(INFO_SCHEMA_PROJECT);
+    Boolean groupQueries = cmd.hasOption(GROUP_QUERIES_OPTION_NAME);
 
     return new InformationSchemaQueryIterable(
         processingProjectId,
@@ -390,6 +401,7 @@ public class AntiPatternCommandParser {
         customTopNPercent,
         region,
         infoSchemaProject,
+        groupQueries,
         getServiceAccountKeyfilePath());
   }
 
