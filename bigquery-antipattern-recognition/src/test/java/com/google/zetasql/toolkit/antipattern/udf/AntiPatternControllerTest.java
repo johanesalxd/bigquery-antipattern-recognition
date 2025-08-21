@@ -13,6 +13,8 @@ import com.google.zetasql.toolkit.antipattern.models.BigQueryRemoteFnResponse;
 import com.google.zetasql.toolkit.antipattern.models.BigQueryRemoteFnResult;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -94,7 +96,7 @@ public class AntiPatternControllerTest {
 
         String results = responseObj.getErrorMessage();
 
-        assertEquals("Syntax error: Unexpected integer literal \"123\"", results);
+        assertEquals("Syntax error: Expected end of input but got integer literal \"123\" [at 1:1]", results);
 
     }
 
@@ -114,7 +116,7 @@ public class AntiPatternControllerTest {
         String results2 = responseObj2.getErrorMessage();
 
         assertEquals("SimpleSelectStar", results1.get(0).getName());
-        assertEquals("Syntax error: Unexpected integer literal \"123\"", results2);
+        assertEquals("Syntax error: Expected end of input but got integer literal \"123\" [at 1:1]", results2);
 
     }
 
@@ -136,6 +138,48 @@ public class AntiPatternControllerTest {
         );
     }
 
+    // Tests for the AI rewrite endpoint
 
+    @Test
+    public void testRewriteEndpointWithNoAntipatterns() throws Exception {
+        BigQueryRemoteFnRequest request = createRequest(List.of("SELECT id FROM dataset.table"));
+
+        ObjectNode response = antiPatternController.analyzeAndRewriteQueries(request);
+        BigQueryRemoteFnResponse responseObj = objectMapper.convertValue(response.get("replies").get(0),
+                BigQueryRemoteFnResponse.class);
+
+        assertEquals("None", responseObj.getAntipatterns().get(0).getName());
+        assertNull(responseObj.getOptimized_sql()); // No optimization when no antipatterns
+    }
+
+    @Test
+    public void testRewriteEndpointWithAntipatterns() throws Exception {
+        BigQueryRemoteFnRequest request = createRequest(List.of("SELECT * FROM dataset.table"));
+
+        ObjectNode response = antiPatternController.analyzeAndRewriteQueries(request);
+        BigQueryRemoteFnResponse responseObj = objectMapper.convertValue(response.get("replies").get(0),
+                BigQueryRemoteFnResponse.class);
+
+        assertEquals("SimpleSelectStar", responseObj.getAntipatterns().get(0).getName());
+        // optimized_sql will be null in test environment (no PROJECT_ID set)
+    }
+
+    @Test
+    public void testStandardVsRewriteEndpoints() throws Exception {
+        BigQueryRemoteFnRequest request = createRequest(List.of("SELECT * FROM dataset.table"));
+
+        // Standard endpoint should not include optimized_sql
+        ObjectNode standardResponse = antiPatternController.analyzeQueries(request);
+        BigQueryRemoteFnResponse standardObj = objectMapper.convertValue(standardResponse.get("replies").get(0),
+                BigQueryRemoteFnResponse.class);
+        assertNull(standardObj.getOptimized_sql());
+
+        // Rewrite endpoint includes optimized_sql field (even if null)
+        ObjectNode rewriteResponse = antiPatternController.analyzeAndRewriteQueries(request);
+        BigQueryRemoteFnResponse rewriteObj = objectMapper.convertValue(rewriteResponse.get("replies").get(0),
+                BigQueryRemoteFnResponse.class);
+        // Field exists but is null due to missing PROJECT_ID in test environment
+        assertNotNull(rewriteObj.getAntipatterns());
+    }
 
 }

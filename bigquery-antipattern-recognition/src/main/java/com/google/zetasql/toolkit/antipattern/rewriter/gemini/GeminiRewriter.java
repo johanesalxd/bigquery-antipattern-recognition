@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
 public class GeminiRewriter {
 
     private static final Logger logger = LoggerFactory.getLogger(GeminiRewriter.class);
-    private static final String API_URI_TEMPLATE = "https://us-central1-aiplatform.googleapis.com/v1/projects/%s/locations/us-central1/publishers/google/models/gemini-1.5-pro-preview-0409:generateContent?alt=sse";
+    private static final String API_URI_TEMPLATE = "https://us-central1-aiplatform.googleapis.com/v1/projects/%s/locations/us-central1/publishers/google/models/gemini-2.5-pro:generateContent?alt=sse";
 
 
     public static void rewriteSQL(InputQuery inputQuery,
