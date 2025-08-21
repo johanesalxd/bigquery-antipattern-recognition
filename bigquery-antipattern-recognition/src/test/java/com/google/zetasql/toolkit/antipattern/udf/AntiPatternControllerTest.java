@@ -114,6 +114,8 @@ public class AntiPatternControllerTest {
         List<BigQueryRemoteFnResult> results1 = responseObj1.getAntipatterns();
 
         String results2 = responseObj2.getErrorMessage();
+        System.out.println("+++++");
+        System.out.println(results2);
 
         assertEquals("SimpleSelectStar", results1.get(0).getName());
         assertEquals("Syntax error: Expected end of input but got integer literal \"123\" [at 1:1]", results2);
