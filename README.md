@@ -1,12 +1,12 @@
 # BigQuery Optimization via Anti-Pattern Recognition
 
-This utility scans a BigQuery SQL in search for several possible anti-patterns. 
-Anti-patterns are specific SQL syntaxes that in some cases might cause 
+This utility scans a BigQuery SQL in search for several possible anti-patterns.
+Anti-patterns are specific SQL syntaxes that in some cases might cause
 performance impact.
 
-We recommend using this tool to scan the top 10% slot consuming jobs of your 
-workload. Addressing these anti-patterns in most cases will provide performance 
-significant benefits. 
+We recommend using this tool to scan the top 10% slot consuming jobs of your
+workload. Addressing these anti-patterns in most cases will provide performance
+significant benefits.
 
 # Before you start
 
@@ -37,7 +37,7 @@ The following dialects are supported by the SQL translator:
 
 # Quick Start Docker
 
-To run the tool use the [cloud shell](https://cloud.google.com/shell/docs/launching-cloud-shell#launch_from_the) terminal. It has all the 
+To run the tool use the [cloud shell](https://cloud.google.com/shell/docs/launching-cloud-shell#launch_from_the) terminal. It has all the
 pre-requisites.
 
 Build utility
@@ -55,12 +55,12 @@ Run tool for simple inline query
 # in cloud shell terminal
 docker run \
   -i bigquery-antipattern-recognition \
-  --query "SELECT * FROM \`project.dataset.table1\`" 
+  --query "SELECT * FROM \`project.dataset.table1\`"
 ```
 
-In the BigQuery console, run the DDL bellow to create th output table 
+In the BigQuery console, run the DDL bellow to create th output table
 ```SQL
--- in BQ console 
+-- in BQ console
 CREATE OR REPLACE TABLE <my-project>.<my-dataset>.antipattern_output_table (
   job_id STRING,
   user_email STRING,
@@ -87,7 +87,7 @@ docker run \
     --read_from_info_schema_days 1 \
     --processing_project_id <my-processing-project> \
     --output_table "<my-project>.<my-dataset>.antipattern_output_table" \
-    --info_schema_top_n_percentage_of_jobs 0.1  
+    --info_schema_top_n_percentage_of_jobs 0.1
 
 ```
 
@@ -95,12 +95,12 @@ Read output in BigQuery Console
 ```SQL
 -- in BQ console
 SELECT
-  job_id, user_email, query, 
+  job_id, user_email, query,
   recommendation, slot_hours
-FROM 
+FROM
   `<my-project>.<my-dataset>.antipattern_output_table`
 ORDER BY
-  process_timestamp DESC 
+  process_timestamp DESC
 LIMIT 10000;
 ```
 
@@ -112,8 +112,8 @@ LIMIT 10000;
 
 
 # Quick Start JAR
-For easier deployment and management, Docker is the recommended approach for 
-running the tool. However, if Docker is unavailable, running with a JAR file 
+For easier deployment and management, Docker is the recommended approach for
+running the tool. However, if Docker is unavailable, running with a JAR file
 is also an option.
 
 To run the tool use the [cloud shell](https://cloud.google.com/shell/docs/launching-cloud-shell#launch_from_the) terminal. It has all the
@@ -171,10 +171,42 @@ select col1 from table1 where col3=1 and col2 like '%abc%'
 --------------------------------------------------
 ```
 
-# Deploy as a Remote Function UDF
-Deploying the anti-pattern recognition tool as a remote function UDF allows you to easily call the Antipattern tool within SQL. 
+# Query Grouping Feature
 
-For example: 
+The tool includes a query grouping feature that provides more accurate analysis by grouping identical queries together before applying slot consumption filters.
+
+## How it works
+When using the `--group_queries` flag with INFORMATION_SCHEMA input:
+- Identical queries are grouped together
+- Slot hours are summed across all executions of the same query
+- The percentage filter (`--info_schema_top_n_percentage_of_jobs`) is applied after grouping
+- This identifies query patterns that cumulatively consume significant resources
+
+## Example Usage
+```bash
+# Group queries and analyze top 1% by cumulative slot consumption
+docker run \
+    -v ~/.config:/root/.config \
+    -i bigquery-antipattern-recognition \
+    --read_from_info_schema \
+    --info_schema_project <project-name> \
+    --info_schema_region us \
+    --read_from_info_schema_days 30 \
+    --processing_project_id <my-processing-project> \
+    --output_table "<my-project>.<my-dataset>.antipattern_output_table" \
+    --info_schema_top_n_percentage_of_jobs 0.01 \
+    --group_queries
+```
+
+## Benefits
+- **More accurate resource analysis**: Identifies queries that are frequently executed
+- **Pattern-based optimization**: Focuses on query patterns rather than individual executions
+- **Better prioritization**: Helps prioritize optimization efforts on queries with the highest cumulative impact
+
+# Deploy as a Remote Function UDF
+Deploying the anti-pattern recognition tool as a remote function UDF allows you to easily call the Antipattern tool within SQL.
+
+For example:
 
 ```sql
 SELECT fns.get_antipatterns("SELECT * from dataset.table ORDER BY 1")
@@ -223,7 +255,7 @@ To read input queries from INFORMATION_SCHEMA.JOBS.
 
 `--read_from_info_schema_days n`
 <ul>
-Specifies how many days of INFORMATION_SCHEMA to read <br> 
+Specifies how many days of INFORMATION_SCHEMA to read <br>
 Must be set along with `--read_from_info_schema`. <br>
 Defaults to 1.
 </ul>
@@ -237,7 +269,7 @@ This is the project with the queries that you want to optimize.
 
 `--info_schema_region us`
 <ul>
-Region from which to read information schema  
+Region from which to read information schema
 </ul>
 
 `--read_from_info_schema_start_time "start-timestamp"` <br>
@@ -264,8 +296,15 @@ Specifies what variant of INFORMATION_SCHEMA.JOBS to read from.
 `--info_schema_top_n_percentage_of_jobs n`
 <ul>
 Number between 0 and 1. Uses to specify what fraction of top slot consuming jobs
-the tool should consider, e.g. if equal to 0.1 only top 10% slot consuming jobs 
+the tool should consider, e.g. if equal to 0.1 only top 10% slot consuming jobs
 will be checked por anti patterns.
+</ul>
+
+`--group_queries`
+<ul>
+Groups identical queries together and sums their slot consumption before applying
+the percentage filter. This provides more accurate insights into which query patterns
+consume the most resources by analyzing cumulative impact rather than individual executions.
 </ul>
 
 ### To read from a BigQuery Table
@@ -309,15 +348,15 @@ Specifies table to which write results to. Assumes that the table already exits.
 ## Specify compute project
 `--processing_project_id <my-processing-project>`
 <ul>
-Specifies what project provides the compute used to read from INFORMATION_SCHEMA <br> 
+Specifies what project provides the compute used to read from INFORMATION_SCHEMA <br>
 and/or to write to output table (i.e. project where BQ jobs will execute) <br>
 Needed if the input is INFORMATION_SCHEMA or if the output is a BQ table. <br>
-Needed if using sql rewrite. 
+Needed if using sql rewrite.
 </ul>
 
 
 ## Using AI for rewrite
-`--rewrite_sql` 
+`--rewrite_sql`
 <ul>
 If used a rewritted SQL will be provided. The rewrite will be performed using an LLM.<br>
 This is an experimental feature. Requires processing_project_id to be specified.
@@ -334,9 +373,9 @@ Path to service account json keyfile.
 ## Anti Pattern 1: Selecting all columns
 Example:
 ```
-SELECT 
-    * 
-FROM 
+SELECT
+    *
+FROM
     `project.dataset.table1`
 ```
 
@@ -348,11 +387,11 @@ All columns on table: project.dataset.table1 are being selected. Please be sure 
 ## Anti Pattern 2: SEMI-JOIN without aggregation
 Example:
 ```
-SELECT 
-   t1.col1 
-FROM 
-   `project.dataset.table1` t1 
-WHERE 
+SELECT
+   t1.col1
+FROM
+   `project.dataset.table1` t1
+WHERE
     t1.col2 not in (select col2 from `project.dataset.table2`);
 ```
 
@@ -366,13 +405,13 @@ Example:
 ```
 WITH
   a AS (
-  SELECT col1,col2 FROM test WHERE col1='abc' 
+  SELECT col1,col2 FROM test WHERE col1='abc'
   ),
-  b AS ( 
-    SELECT col2 FROM a 
+  b AS (
+    SELECT col2 FROM a
   ),
   c AS (
-  SELECT col1 FROM a 
+  SELECT col1 FROM a
   )
 SELECT
   b.col2,
@@ -449,13 +488,13 @@ Example:
 ```
 SELECT
  *
-FROM 
+FROM
   comments c
-JOIN 
+JOIN
   users u ON c.user_id = u.id
-WHERE 
+WHERE
   u.id IN (
-    SELECT id 
+    SELECT id
     FROM users
     WHERE location LIKE '%New York'
     GROUP BY id
@@ -474,12 +513,12 @@ Dynamic Predicate: Using subquery in filter at line 10. Converting this dynamic 
 ## Anti Pattern 8: Where order, apply most selective expression first
 Example:
 ```
-SELECT 
-  repo_name, 
+SELECT
+  repo_name,
   id,
   ref
-FROM 
-  `bigquery-public-data.github_repos.files` 
+FROM
+  `bigquery-public-data.github_repos.files`
 WHERE
   ref like '%master%'
   and repo_name = 'cdnjs/cdnjs'
@@ -491,11 +530,11 @@ Output:
 WhereOrder: LIKE filter in line 8 precedes a more selective filter.
 ```
 
-## Anti Pattern 9: Join Order 
+## Anti Pattern 9: Join Order
 As a [best practice](https://cloud.google.com/bigquery/docs/best-practices-performance-compute#optimize_your_join_patterns)
-the table with the largest number of rows should be placed first in a JOIN. 
+the table with the largest number of rows should be placed first in a JOIN.
 
-This anti-pattern checks the join order based on the number of rows of each 
+This anti-pattern checks the join order based on the number of rows of each
 table. To do so this tool must fetch table metadata, for which the `advanced_analysis`
 flag must be used.
 
@@ -503,7 +542,7 @@ Details can be found [here](./EXAMPLES.md#run-using-advanced-analysis).
 
 Example:
 ```
-SELECT  
+SELECT
   t1.station_id,
   COUNT(1) num_trips_started
 FROM
@@ -517,8 +556,8 @@ GROUP BY
 
 Output:
 ```
-JoinOrder: JOIN on tables: [bikeshare_stations, bikeshare_trips] might perform 
-better if tables where joined in the following order: 
+JoinOrder: JOIN on tables: [bikeshare_stations, bikeshare_trips] might perform
+better if tables where joined in the following order:
 [bikeshare_trips, bikeshare_stations]
 ```
 
@@ -581,7 +620,7 @@ SELECT
 FROM
   `proj.data.logs`
 WHERE
-   DATE(log_timestamp) = '2025-04-21'; -- Function on clustering 
+   DATE(log_timestamp) = '2025-04-21'; -- Function on clustering
 ```
 Ouput:
 ```
