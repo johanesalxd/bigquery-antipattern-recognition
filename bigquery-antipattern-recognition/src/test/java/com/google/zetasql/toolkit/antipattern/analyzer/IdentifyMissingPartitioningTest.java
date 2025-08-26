@@ -6,7 +6,7 @@ import com.google.zetasql.toolkit.catalog.bigquery.BigQueryAPIResourceProvider;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
 import com.google.zetasql.AnalyzerOptions;
-import com.google.zetasql.toolkit.options.BigQueryLanguageOptions;
+import com.google.zetasql.toolkit.AnalyzedStatement;
 import com.google.zetasql.resolvedast.ResolvedNodes;
 
 import java.util.Iterator;
@@ -49,9 +49,9 @@ public class IdentifyMissingPartitioningTest {
       + "  `bigquery-public-data.austin_bikeshare.bikeshare_stations`\n"
       + ";";
       catalog.addAllTablesUsedInQuery(query, analyzerOptions);
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<AnalyzedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
       PartitionCheckVisitor visitor = new PartitionCheckVisitor(service);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
       String recommendation = visitor.getResult();
       assertEquals(expected, recommendation);
     }
@@ -65,9 +65,9 @@ public class IdentifyMissingPartitioningTest {
       + "  `bigquery-public-data.crypto_bitcoin.transactions`\n"
       + ";";
       catalog.addAllTablesUsedInQuery(query, analyzerOptions);
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<AnalyzedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
       PartitionCheckVisitor visitor = new PartitionCheckVisitor(service);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
       String recommendation = visitor.getResult();
       assertEquals(expected, recommendation);
     }

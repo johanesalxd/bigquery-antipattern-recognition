@@ -7,7 +7,7 @@ import com.google.zetasql.toolkit.catalog.bigquery.BigQueryAPIResourceProvider;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
 import com.google.zetasql.AnalyzerOptions;
-import com.google.zetasql.toolkit.options.BigQueryLanguageOptions;
+import com.google.zetasql.toolkit.AnalyzedStatement;
 import com.google.zetasql.resolvedast.ResolvedNodes;
 import com.google.zetasql.LanguageOptions;
 
@@ -36,7 +36,7 @@ public class IdentifyClusteringOrderTest {
     @Before
     public void setUp() {
       languageOptions = new LanguageOptions();
-      languageOptions = BigQueryLanguageOptions.get().enableMaximumLanguageFeatures();
+      languageOptions.enableMaximumLanguageFeatures();
       languageOptions.setSupportsAllStatementKinds();
       analyzerOptions = new AnalyzerOptions();
       analyzerOptions.setLanguageOptions(languageOptions);
@@ -61,11 +61,11 @@ public class IdentifyClusteringOrderTest {
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE title = 'sf' and wiki='sf'";
 
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<AnalyzedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
       Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
       ClusteringOrderVisitor visitor = new ClusteringOrderVisitor(clusteringInfo);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
       String recommendation = visitor.getResult();
       System.out.println(recommendation);
 
@@ -79,11 +79,11 @@ public class IdentifyClusteringOrderTest {
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE wiki = 'sf' and title='sf'";
 
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<AnalyzedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
       Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
       ClusteringOrderVisitor visitor = new ClusteringOrderVisitor(clusteringInfo);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
       String recommendation = visitor.getResult();
       System.out.println(recommendation);
 

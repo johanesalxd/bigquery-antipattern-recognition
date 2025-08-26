@@ -21,6 +21,7 @@ import com.google.zetasql.LanguageOptions;
 import com.google.zetasql.Parser;
 import com.google.zetasql.parser.ASTNodes;
 import com.google.zetasql.parser.ParseTreeVisitor;
+import com.google.zetasql.resolvedast.ResolvedNodes;
 import com.google.zetasql.toolkit.AnalyzedStatement;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
 import com.google.zetasql.toolkit.antipattern.AntiPatternVisitor;
@@ -35,6 +36,11 @@ import com.google.zetasql.toolkit.antipattern.parser.visitors.IdentifySimpleSele
 import com.google.zetasql.toolkit.antipattern.parser.visitors.rownum.IdentifyLatestRecordVisitor;
 import com.google.zetasql.toolkit.antipattern.parser.visitors.whereorder.IdentifyWhereOrderVisitor;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.joinorder.JoinOrderVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.ClusteringCheckVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyfunction.ClusteringKeyFunctionVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyused.ClusteringKeysUsedVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringonclustering.ClusterColComparisonVisitor;
+import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringorder.ClusteringOrderVisitor;
 import com.google.zetasql.toolkit.antipattern.cmd.InputQuery;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryAPIResourceProvider;
 import com.google.zetasql.toolkit.catalog.bigquery.BigQueryCatalog;
@@ -47,6 +53,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class AntiPatternHelper {
     private static final Logger logger = LoggerFactory.getLogger(AntiPatternHelper.class);
@@ -125,24 +132,77 @@ public class AntiPatternHelper {
             catalog = new BigQueryCatalog(this.analyzerProject, this.resourceProvider);
             catalog.addAllTablesUsedInQuery(query, this.analyzerOptions);
         }
-        JoinOrderVisitor visitor = new JoinOrderVisitor(this.service);
-        if (this.visitorMetricsMap == null) {
-            this.visitorMetricsMap = new HashMap<>();
-        }
-        this.visitorMetricsMap.merge(visitor.getName(), 1, Integer::sum);
+
+        // Independent visitors, run one by one:
+        // join order visitor
+        JoinOrderVisitor joinOrderVisitor = new JoinOrderVisitor(this.service);
         try {
             logger.info("Analyzing query with id: " + inputQuery.getQueryId() +
-                    " For anti-pattern:" + visitor.getName());
+                    " For anti-pattern:" + joinOrderVisitor.getName());
             Iterator<AnalyzedStatement> statementIterator = this.analyzer.analyzeStatements(query, catalog);
-            statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
+            statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(joinOrderVisitor));
 
-            String result = visitor.getResult();
+            String result = joinOrderVisitor.getResult();
             if (result.length() > 0) {
-                visitorsThatFoundAntiPatterns.add(visitor);
+                visitorsThatFoundAntiPatterns.add(joinOrderVisitor);
             }
         } catch (Exception e) {
             logger.error("Error analyzing query with id: " + inputQuery.getQueryId() +
-                    " For anti-pattern:" + visitor.getName());
+                    " For anti-pattern:" + joinOrderVisitor.getName());
+            logger.error(e.getMessage(), e);
+        }
+
+        // clustering check visitor
+        ClusteringCheckVisitor clusteringCheckVisitor = new ClusteringCheckVisitor(this.service);
+        try {
+            logger.info("Analyzing query with id: " + inputQuery.getQueryId() +
+                    " For anti-pattern:" + clusteringCheckVisitor.getName());
+            Iterator<AnalyzedStatement> statementIterator = this.analyzer.analyzeStatements(query, catalog);
+            statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(clusteringCheckVisitor));
+
+            String result = clusteringCheckVisitor.getResult();
+            if (result.length() > 0) {
+                visitorsThatFoundAntiPatterns.add(clusteringCheckVisitor);
+            }
+
+            if (!clusteringCheckVisitor.getContainsUnclusteredTables()) {
+                Map<String, List<String>> clusteringInfo = clusteringCheckVisitor.getClustering();
+                List<AntiPatternVisitor> dependentAnalyzers = Arrays.asList(
+                    new ClusteringKeysUsedVisitor(clusteringInfo),
+                    new ClusteringKeyFunctionVisitor(clusteringInfo),
+                    new ClusteringOrderVisitor(clusteringInfo),
+                    new ClusterColComparisonVisitor(clusteringInfo)
+                );
+
+                for (AntiPatternVisitor visitor : dependentAnalyzers) {
+                    if (this.visitorMetricsMap == null) {
+                        this.visitorMetricsMap = new HashMap<>();
+                    }
+                    if (this.visitorMetricsMap.get(visitor.getName()) == null) {
+                        this.visitorMetricsMap.put(visitor.getName(), 0);
+                    }
+                    this.visitorMetricsMap.merge(visitor.getName(), 1, Integer::sum);
+
+                    try {
+                        logger.info("Analyzing query with id: " + inputQuery.getQueryId() +
+                                " For anti-pattern:" + visitor.getName());
+                        Iterator<AnalyzedStatement> depStatementIterator = this.analyzer.analyzeStatements(query, catalog);
+                        depStatementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept((ResolvedNodes.Visitor) visitor));
+
+                        String depResult = visitor.getResult();
+                        if (depResult.length() > 0) {
+                            visitorsThatFoundAntiPatterns.add(visitor);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error analyzing query with id: " + inputQuery.getQueryId() +
+                                " For anti-pattern:" + visitor.getName());
+                        logger.error(e.getMessage(), e);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error analyzing query with id: " + inputQuery.getQueryId() +
+                    " For anti-pattern:" + clusteringCheckVisitor.getName());
             logger.error(e.getMessage(), e);
         }
     }

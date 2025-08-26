@@ -6,7 +6,7 @@ import com.google.zetasql.toolkit.catalog.bigquery.BigQueryService;
 import com.google.zetasql.toolkit.ZetaSQLToolkitAnalyzer;
 import com.google.zetasql.toolkit.antipattern.analyzer.visitors.clustering.clusteringkeyused.ClusteringKeysUsedVisitor;
 import com.google.zetasql.AnalyzerOptions;
-import com.google.zetasql.toolkit.options.BigQueryLanguageOptions;
+import com.google.zetasql.toolkit.AnalyzedStatement;
 import com.google.zetasql.resolvedast.ResolvedNodes;
 import com.google.zetasql.LanguageOptions;
 
@@ -35,7 +35,7 @@ public class IdentifyUnusedClusteringKeysTest {
     @Before
     public void setUp() {
       languageOptions = new LanguageOptions();
-      languageOptions = BigQueryLanguageOptions.get().enableMaximumLanguageFeatures();
+      languageOptions.enableMaximumLanguageFeatures();
       languageOptions.setSupportsAllStatementKinds();
       analyzerOptions = new AnalyzerOptions();
       analyzerOptions.setLanguageOptions(languageOptions);
@@ -60,11 +60,11 @@ public class IdentifyUnusedClusteringKeysTest {
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE wiki = 'sf'";
 
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<AnalyzedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
       Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
       ClusteringKeysUsedVisitor visitor = new ClusteringKeysUsedVisitor(clusteringInfo);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
       visitor.analyzeKeyUsage(); // Analyze after visiting
       String recommendation = visitor.getResult();
 
@@ -78,11 +78,11 @@ public class IdentifyUnusedClusteringKeysTest {
           + "FROM " + PUBLIC_CLUSTERED_TABLE + "\n"
           + "WHERE views = 1";
 
-      Iterator<ResolvedNodes.ResolvedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
+      Iterator<AnalyzedStatement> statementIterator = zetaSQLToolkitAnalyzer.analyzeStatements(query, catalog);
 
       Map<String, List<String>> clusteringInfo = getClusteringInfoForTable();
       ClusteringKeysUsedVisitor visitor = new ClusteringKeysUsedVisitor(clusteringInfo);
-      statementIterator.forEachRemaining(statement -> statement.accept(visitor));
+      statementIterator.forEachRemaining(statement -> statement.getResolvedStatement().get().accept(visitor));
       visitor.analyzeKeyUsage(); // Analyze after visiting
       String recommendation = visitor.getResult();
       System.out.println(recommendation);
